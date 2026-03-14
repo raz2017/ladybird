@@ -129,21 +129,24 @@ JS_DEFINE_NATIVE_FUNCTION(SetPrototype::difference)
         // a. Let thisSize be the number of elements in O.[[SetData]].
         // b. Let index be 0.
         // c. Repeat, while index < thisSize,
-        // NOTE: We snapshot resultSetData elements upfront so that modifications to O.[[SetData]]
-        //       by the |has| callback do not affect the iteration (spec iterates resultSetData).
-        Vector<Value> result_elements;
+
+        // NOTE: The spec iterates resultSetData (the copy) by index. We collect the elements
+        // upfront so that mutations to O (the original set) via the has callback do not affect
+        // which elements we visit.
+        auto result_elements = GC::RootVector<Value> { vm.heap() };
         for (auto const& element : *result)
             result_elements.append(element.key);
-        for (auto const& key : result_elements) {
+
+        for (auto const& element : result_elements) {
             // i. Let e be resultSetData[index].
             // ii. If e is not EMPTY, then
             //     1. Let inOther be ToBoolean(? Call(otherRec.[[Has]], otherRec.[[SetObject]], « e »)).
-            auto in_other = TRY(call(vm, *other_record.has, other_record.set_object, key)).to_boolean();
+            auto in_other = TRY(call(vm, *other_record.has, other_record.set_object, element)).to_boolean();
 
             //     2. If inOther is true, then
             if (in_other) {
                 // a. Set resultSetData[index] to EMPTY.
-                result->set_remove(key);
+                result->set_remove(element);
             }
 
             // iii. Set index to index + 1.
